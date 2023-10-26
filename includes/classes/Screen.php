@@ -52,6 +52,22 @@ class Screen {
 	public $status_report;
 
 	/**
+	 * Features instance
+	 *
+	 * @var Screen\Features
+	 * @since  5.0.0
+	 */
+	public $features;
+
+	/**
+	 * Settings instance
+	 *
+	 * @var Screen\Settings
+	 * @since  5.0.0
+	 */
+	public $settings;
+
+	/**
 	 * Initialize class
 	 *
 	 * @since 3.0
@@ -62,12 +78,14 @@ class Screen {
 		$this->sync_screen        = new Screen\Sync();
 		$this->health_info_screen = new Screen\HealthInfo();
 		$this->status_report      = new Screen\StatusReport();
-		$this->dashboard          = new Screen\Dashboard();
+		$this->features           = new Screen\Features();
+		$this->settings           = new Screen\Settings();
 
 		$this->sync_screen->setup();
 		$this->health_info_screen->setup();
 		$this->status_report->setup();
-		$this->dashboard->setup();
+		$this->features->setup();
+		$this->settings->setup();
 	}
 
 	/**

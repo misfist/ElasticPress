@@ -34,7 +34,6 @@ function setup() {
 
 	add_action( 'wp_ajax_ep_save_feature', __NAMESPACE__ . '\action_wp_ajax_ep_save_feature' );
 	add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\action_admin_enqueue_dashboard_scripts' );
-	add_action( 'admin_init', __NAMESPACE__ . '\action_admin_init' );
 	add_action( 'admin_init', __NAMESPACE__ . '\maybe_clear_es_info_cache' );
 	add_action( 'admin_init', __NAMESPACE__ . '\maybe_skip_install' );
 	add_action( 'wp_ajax_ep_notice_dismiss', __NAMESPACE__ . '\action_wp_ajax_ep_notice_dismiss' );
@@ -470,13 +469,39 @@ function action_admin_enqueue_dashboard_scripts() {
 		wp_set_script_translations( 'ep_admin_script', 'elasticpress' );
 	}
 
-	if ( in_array( Screen::factory()->get_current_screen(), [ 'weighting', 'install' ], true ) ) {
+	if ( 'weighting' === Screen::factory()->get_current_screen() ) {
+
+		wp_enqueue_style(
+			'ep_weighting_styles',
+			EP_URL . 'dist/css/weighting-script.css',
+			[ 'wp-components', 'wp-edit-post' ],
+			Utils\get_asset_info( 'weighting-script', 'version' )
+		);
+
 		wp_enqueue_script(
 			'ep_weighting_script',
 			EP_URL . 'dist/js/weighting-script.js',
 			Utils\get_asset_info( 'weighting-script', 'dependencies' ),
 			Utils\get_asset_info( 'weighting-script', 'version' ),
 			true
+		);
+
+		$weighting = Features::factory()->get_registered_feature( 'search' )->weighting;
+
+		$api_url                 = esc_url_raw( rest_url( 'elasticpress/v1/weighting' ) );
+		$meta_mode               = $weighting->get_meta_mode();
+		$weightable_fields       = $weighting->get_weightable_fields();
+		$weighting_configuration = $weighting->get_weighting_configuration_with_defaults();
+
+		wp_localize_script(
+			'ep_weighting_script',
+			'epWeighting',
+			array(
+				'apiUrl'                 => $api_url,
+				'metaMode'               => $meta_mode,
+				'weightableFields'       => $weightable_fields,
+				'weightingConfiguration' => $weighting_configuration,
+			)
 		);
 
 		wp_set_script_translations( 'ep_weighting_script', 'elasticpress' );
@@ -516,18 +541,6 @@ function action_admin_enqueue_dashboard_scripts() {
 		wp_localize_script( 'ep_dashboard_scripts', 'epDash', $data );
 	}
 
-	if ( in_array( Screen::factory()->get_current_screen(), [ 'settings' ], true ) ) {
-		wp_enqueue_script(
-			'ep_settings_scripts',
-			EP_URL . 'dist/js/settings-script.js',
-			Utils\get_asset_info( 'settings-script', 'dependencies' ),
-			Utils\get_asset_info( 'settings-script', 'version' ),
-			true
-		);
-
-		wp_set_script_translations( 'ep_settings_scripts', 'elasticpress' );
-	}
-
 	if ( in_array( Screen::factory()->get_current_screen(), [ 'health' ], true ) && ! empty( Utils\get_host() ) ) {
 		Stats::factory()->build_stats();
 
@@ -563,68 +576,6 @@ function action_admin_enqueue_dashboard_scripts() {
 			'nonce' => wp_create_nonce( 'ep_admin_nonce' ),
 		)
 	);
-}
-
-/**
- * Admin-init actions
- *
- * Sets up Settings API.
- *
- * @since 1.9
- * @return void
- */
-function action_admin_init() {
-	$post = wp_unslash( $_POST );
-
-	// Save options for multisite.
-	if ( defined( 'EP_IS_NETWORK' ) && EP_IS_NETWORK && isset( $post['ep_language'] ) ) {
-		check_admin_referer( 'elasticpress-options' );
-
-		$language = sanitize_text_field( $post['ep_language'] );
-		Utils\update_option( 'ep_language', $language );
-
-		if ( isset( $post['ep_host'] ) ) {
-			$host = esc_url_raw( trim( $post['ep_host'] ) );
-			Utils\update_option( 'ep_host', $host );
-		}
-
-		if ( isset( $post['ep_credentials'] ) ) {
-			$credentials = ( isset( $post['ep_credentials'] ) ) ? Utils\sanitize_credentials( $post['ep_credentials'] ) : [
-				'username' => '',
-				'token'    => '',
-			];
-
-			Utils\update_option( 'ep_credentials', $credentials );
-		}
-
-		if ( isset( $post['ep_bulk_setting'] ) ) {
-			Utils\update_option( 'ep_bulk_setting', intval( $post['ep_bulk_setting'] ) );
-		}
-	} else {
-		register_setting( 'elasticpress', 'ep_host', 'esc_url_raw' );
-		register_setting( 'elasticpress', 'ep_credentials', 'ep_sanitize_credentials' );
-		register_setting( 'elasticpress', 'ep_language', 'sanitize_text_field' );
-		register_setting(
-			'elasticpress',
-			'ep_bulk_setting',
-			[
-				'type'              => 'integer',
-				'sanitize_callback' => __NAMESPACE__ . '\sanitize_bulk_settings',
-			]
-		);
-	}
-}
-
-/**
- * Sanitize bulk settings.
- *
- * @param int $bulk_settings Number of bulk content items
- * @return int
- */
-function sanitize_bulk_settings( $bulk_settings = 350 ) {
-	$bulk_settings = absint( $bulk_settings );
-
-	return ( 0 === $bulk_settings ) ? 350 : $bulk_settings;
 }
 
 /**

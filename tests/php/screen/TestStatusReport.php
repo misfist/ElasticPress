@@ -192,7 +192,7 @@ class TestStatusReport extends BaseTestCase {
 		$this->assertSame( $expected_result, $report->get_groups() );
 		$this->assertEquals( 'Last Sync', $report->get_title() );
 
-		Utils\delete_option( 'ep_last_index' );
+		Utils\delete_option( 'ep_sync_history' );
 	}
 
 	/**
@@ -202,6 +202,9 @@ class TestStatusReport extends BaseTestCase {
 	 * @since 4.5.1
 	 */
 	public function testIndicesReport() {
+		// Make sure the index exists
+		\ElasticPress\Indexables::factory()->get( 'post' )->put_mapping();
+
 		$report = new \ElasticPress\StatusReport\Indices();
 
 		$group         = $report->get_groups();
@@ -232,6 +235,15 @@ class TestStatusReport extends BaseTestCase {
 		$posts_fields       = array();
 		$meta_fields        = array();
 		$distinct_meta_keys = array();
+
+		$allow_metakeys = function ( $keys ) use ( $post_types ) {
+			$keys[] = 'shared_meta_key';
+			foreach ( $post_types as $post_type ) {
+				$keys[] = "unique_meta_key_{$post_type}";
+			}
+			return $keys;
+		};
+		add_filter( 'ep_prepare_meta_allowed_keys', $allow_metakeys );
 
 		foreach ( $post_types as $post_type ) {
 			$this->ep_factory->post->create_many(
